@@ -1,5 +1,6 @@
--- ConectaTEA V2 - schema proposto para a fase online
+-- ConectaTEA V2.1 - schema revisado para a fase online
 -- Supabase/Postgres + Auth + RLS
+-- Revisão: proteção de papel da conta, integridade de conclusões e hardening de funções.
 -- Execute em um projeto NOVO. O app V2 funciona localmente mesmo sem este banco.
 
 create extension if not exists pgcrypto;
@@ -213,6 +214,84 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute procedure public.handle_new_user();
 
+-- Impede que o próprio cliente troque a conta de dependente para responsável (ou vice-versa)
+-- alterando diretamente a coluna role.
+create or replace function public.prevent_profile_role_change()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.role is distinct from old.role then
+    raise exception 'O tipo da conta não pode ser alterado diretamente';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists protect_profile_role on public.profiles;
+create trigger protect_profile_role
+before update on public.profiles
+for each row execute procedure public.prevent_profile_role_change();
+
+-- Mantém updated_at coerente nas tabelas editáveis.
+create or replace function public.touch_updated_at()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists touch_profiles_updated_at on public.profiles;
+create trigger touch_profiles_updated_at before update on public.profiles
+for each row execute procedure public.touch_updated_at();
+
+drop trigger if exists touch_routine_items_updated_at on public.routine_items;
+create trigger touch_routine_items_updated_at before update on public.routine_items
+for each row execute procedure public.touch_updated_at();
+
+drop trigger if exists touch_sensory_updated_at on public.sensory_preferences;
+create trigger touch_sensory_updated_at before update on public.sensory_preferences
+for each row execute procedure public.touch_updated_at();
+
+drop trigger if exists touch_app_settings_updated_at on public.app_settings;
+create trigger touch_app_settings_updated_at before update on public.app_settings
+for each row execute procedure public.touch_updated_at();
+
+-- Garante que uma conclusão só possa apontar para uma atividade do mesmo dependente.
+create or replace function public.validate_routine_completion_owner()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+begin
+  select dependent_id into v_owner
+  from public.routine_items
+  where id = new.routine_item_id;
+
+  if v_owner is null then
+    raise exception 'Atividade de rotina não encontrada';
+  end if;
+
+  if v_owner is distinct from new.dependent_id then
+    raise exception 'A atividade não pertence a este dependente';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists validate_completion_owner on public.routine_completions;
+create trigger validate_completion_owner
+before insert or update on public.routine_completions
+for each row execute procedure public.validate_routine_completion_owner();
+
 -- Cria código temporário. Retorna o código uma única vez ao dependente.
 create or replace function public.create_pairing_code()
 returns text
@@ -289,10 +368,69 @@ begin
 end;
 $$;
 
+-- O responsável confirma um pedido sem poder alterar mensagem, urgência ou dono do registro.
+create or replace function public.acknowledge_help_request(p_request_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_dependent uuid;
+begin
+  select dependent_id into v_dependent
+  from public.help_requests
+  where id = p_request_id;
+
+  if v_dependent is null or not public.is_linked_guardian(v_dependent) then
+    raise exception 'Pedido não encontrado ou acesso negado';
+  end if;
+
+  update public.help_requests
+  set status = case when status = 'resolved' then status else 'acknowledged'::public.help_status end,
+      acknowledged_at = case when status = 'resolved' then acknowledged_at else coalesce(acknowledged_at, now()) end
+  where id = p_request_id;
+end;
+$$;
+
+create or replace function public.resolve_help_request(p_request_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_dependent uuid;
+begin
+  select dependent_id into v_dependent
+  from public.help_requests
+  where id = p_request_id;
+
+  if v_dependent is null or not public.is_linked_guardian(v_dependent) then
+    raise exception 'Pedido não encontrado ou acesso negado';
+  end if;
+
+  update public.help_requests
+  set status = 'resolved'::public.help_status,
+      acknowledged_at = coalesce(acknowledged_at, now()),
+      resolved_at = coalesce(resolved_at, now())
+  where id = p_request_id;
+end;
+$$;
+
+-- Security-definer helpers não ficam executáveis para anon/public.
+revoke all on function public.is_linked_guardian(uuid) from public;
+revoke all on function public.is_linked_dependent(uuid) from public;
 revoke all on function public.create_pairing_code() from public;
 revoke all on function public.claim_pairing_code(text) from public;
+revoke all on function public.acknowledge_help_request(uuid) from public;
+revoke all on function public.resolve_help_request(uuid) from public;
+grant execute on function public.is_linked_guardian(uuid) to authenticated;
+grant execute on function public.is_linked_dependent(uuid) to authenticated;
 grant execute on function public.create_pairing_code() to authenticated;
 grant execute on function public.claim_pairing_code(text) to authenticated;
+grant execute on function public.acknowledge_help_request(uuid) to authenticated;
+grant execute on function public.resolve_help_request(uuid) to authenticated;
 
 -- ========= ROW LEVEL SECURITY =========
 alter table public.profiles enable row level security;
@@ -378,11 +516,8 @@ drop policy if exists "guardian reads linked help" on public.help_requests;
 create policy "guardian reads linked help" on public.help_requests
 for select to authenticated using (public.is_linked_guardian(dependent_id));
 
+-- Atualizações de status são feitas somente pelas RPCs acknowledge_help_request/resolve_help_request.
 drop policy if exists "guardian updates linked help" on public.help_requests;
-create policy "guardian updates linked help" on public.help_requests
-for update to authenticated
-using (public.is_linked_guardian(dependent_id))
-with check (public.is_linked_guardian(dependent_id));
 
 -- relax sessions
 drop policy if exists "dependent manages relax sessions" on public.relax_sessions;
@@ -428,13 +563,13 @@ for select to authenticated using (public.is_linked_guardian(dependent_id));
 
 -- ========= GRANTS =========
 grant usage on schema public to authenticated;
-grant select, insert, update, delete on public.profiles to authenticated;
+grant select, update on public.profiles to authenticated;
 grant select, delete on public.connections to authenticated;
 grant select on public.pairing_codes to authenticated;
 grant select, insert, update, delete on public.mood_entries to authenticated;
 grant select, insert, update, delete on public.routine_items to authenticated;
 grant select, insert, update, delete on public.routine_completions to authenticated;
-grant select, insert, update on public.help_requests to authenticated;
+grant select, insert on public.help_requests to authenticated;
 grant select, insert, update, delete on public.relax_sessions to authenticated;
 grant select, insert, update, delete on public.sensory_preferences to authenticated;
 grant select, insert, update, delete on public.app_settings to authenticated;

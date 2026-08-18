@@ -2,7 +2,7 @@
   "expo": {
     "name": "ConectaTEA",
     "slug": "conectatea",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "conectatea",
@@ -12,7 +12,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#F8FAFF"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "plugins": [
       [
         "expo-audio",

@@ -1,14 +1,19 @@
-# ConectaTEA — V2 Completa (base funcional + arquitetura de produção)
+# ConectaTEA — V3 (Supabase Auth real + base funcional)
 
 Aplicativo mobile criado do zero a partir do conceito do ConectaTEA: apoiar organização de rotina, comunicação de emoções, autorregulação e pedido de apoio entre dependente e responsável.
 
 > **Escopo responsável:** o ConectaTEA é uma ferramenta de organização, comunicação e apoio. Não realiza diagnóstico, não classifica a pessoa e não substitui atendimento profissional ou serviço de emergência.
 
-## O que funciona nesta V2 sem servidor
+## O que funciona nesta V3
 
-A V2 foi construída como **local-first** para ser testável antes de existir um backend:
+A V3 mantém a experiência local-first dos recursos do app, mas a camada de conta já está conectada ao backend:
 
-- Fluxo de abertura, escolha de perfil, login/cadastro demonstrativo.
+- Fluxo de abertura e escolha de perfil.
+- **Cadastro e login reais no Supabase Auth** para dependente e responsável.
+- Sessão persistente e restauração automática ao reabrir o app.
+- Validação do tipo de conta consultando `public.profiles.role`.
+- Logout real.
+- Atualização do nome do perfil no Supabase.
 - Dois ambientes: **Dependente** e **Responsável**.
 - Estado persistente local com AsyncStorage: fechar e abrir o app mantém os registros.
 - Registro de humor com 5 opções, intensidade, motivo, contexto e necessidade de apoio.
@@ -33,11 +38,11 @@ A V2 foi construída como **local-first** para ser testável antes de existir um
 - Código de vínculo demonstrativo entre dependente e responsável.
 - Modo simples e configurações de acessibilidade.
 
-## Coisas avançadas já preparadas
+## Backend e recursos avançados já preparados
 
 Além da interface, o repositório contém uma base de produção:
 
-- `supabase/schema.sql`: banco PostgreSQL completo com Auth, vínculos, humores, rotinas, conclusões, pedidos de ajuda, sessões de relaxamento, dispositivos e cartões de comunicação.
+- `supabase/schema.sql`: schema V2.1 revisado do PostgreSQL/Supabase com Auth, vínculos, humores, rotinas, conclusões, pedidos de ajuda, sessões de relaxamento, dispositivos e cartões de comunicação.
 - Políticas **Row Level Security (RLS)** para separar dados de usuários e permitir leitura somente entre contas vinculadas.
 - Código de vínculo temporário com hash no servidor, em vez de armazenar o código em texto puro.
 - `src/services/supabase.ts`: cliente Supabase preparado para receber URL e publishable key via `.env`.
@@ -45,19 +50,18 @@ Além da interface, o repositório contém uma base de produção:
 - `supabase/functions/send-help-notification/index.ts`: Edge Function para enviar o pedido de ajuda aos dispositivos dos responsáveis vinculados.
 - `eas.json`: perfil de build `preview` preparado para gerar APK de teste.
 
-## O que ainda precisa de credenciais/serviços externos
+## O que ainda falta para o modo multi-dispositivo completo
 
-Estas partes **não podem funcionar entre dois celulares sem configurar os serviços reais**:
+A autenticação já está real. As próximas etapas são:
 
-1. autenticação real no Supabase;
-2. sincronização dos dados locais com o banco;
-3. vínculo real entre duas contas em aparelhos diferentes;
-4. registro do push token do aparelho do responsável;
-5. envio remoto de push notification;
-6. recuperação de senha/e-mail;
-7. build assinado e publicação em loja.
+1. sincronizar humor, rotina, preferências, relaxamento e pedidos de ajuda com o banco;
+2. ativar o vínculo real por RPC entre duas contas em aparelhos diferentes;
+3. registrar o push token do aparelho do responsável;
+4. enviar push notification remota;
+5. implementar o fluxo completo de recuperação de senha;
+6. gerar build assinado e preparar publicação em loja.
 
-A estrutura para essas etapas já acompanha o projeto, mas a V2 não inventa credenciais nem finge que existe um servidor configurado.
+A V3 não finge que dados locais já estão sincronizados: cada tela deixa claro o que está online e o que ainda usa AsyncStorage.
 
 ## Como rodar
 
@@ -86,7 +90,7 @@ npm run build:apk
 ## Estrutura do projeto
 
 ```text
-ConectaTEA_V2_COMPLETO/
+ConectaTEA_V3_SUPABASE_AUTH/
 ├─ App.tsx
 ├─ app.json
 ├─ eas.json
@@ -121,10 +125,12 @@ ConectaTEA_V2_COMPLETO/
 - `docs/PLANO_DE_TESTES.md`
 - `docs/ROADMAP_PRODUCAO.md`
 - `docs/RECURSOS_IMPLEMENTADOS.md`
+- `docs/AUTENTICACAO_SUPABASE.md`
+- `supabase/verify_setup.sql`
 
 ## Dados de demonstração
 
-O app inicia com Lucas e Fernanda e alguns registros fictícios para que os gráficos, rotina e relatórios possam ser testados de imediato. Em **Mais → Perfil e preferências** existe a opção de restaurar os dados de demonstração.
+Os recursos ainda locais iniciam com Lucas e Fernanda e alguns registros fictícios para que gráficos, rotina e relatórios possam ser testados enquanto a sincronização completa não é ativada. Em **Mais → Perfil e preferências** existe a opção de restaurar os dados de demonstração.
 
 ## Observação sobre segurança
 

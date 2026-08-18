@@ -7,8 +7,8 @@ const supabasePublishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabasePublishableKey);
 
 /**
- * Cliente de produção. A V2 mantém o modo local ativo até que URL e chave
- * publicável sejam configuradas no .env e a camada de sincronização seja ligada.
+ * Cliente Supabase da V3. Cadastro, login, sessão e perfil já usam o backend.
+ * Os demais módulos continuam local-first até a camada de sincronização ser ligada.
  * Nenhuma secret/service-role key deve ser colocada no aplicativo.
  */
 export const supabase = isSupabaseConfigured

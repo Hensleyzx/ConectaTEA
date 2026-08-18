@@ -1,27 +1,51 @@
 # Roadmap até produção
 
-## Fase A — V2 local funcional ✅
-- interface;
-- navegação;
+## Fase A — Base local funcional ✅
+
+- interface e navegação;
 - persistência local;
 - humores;
 - rotina;
 - áudio;
-- comunicação;
+- comunicação/AAC simplificada;
 - pedido de ajuda demonstrativo;
-- responsável e relatórios;
-- ferramentas avançadas de regulação.
+- área do responsável e relatórios;
+- ferramentas de regulação e acessibilidade.
 
-## Fase B — Backend real
-- Supabase Auth;
-- carregamento do perfil;
+## Fase B — V3 autenticação Supabase ✅
+
+- cadastro real por e-mail e senha;
+- perfis `dependent` e `guardian`;
+- criação automática de `profiles` por trigger;
+- sessão persistente;
+- restauração automática da sessão;
+- validação do papel pelo banco;
+- logout real;
+- atualização online do nome do perfil;
+- `.env` separado do GitHub.
+
+## Fase C — Dados compartilhados
+
 - Repository local + remoto;
-- CRUD real de humor/rotina;
-- vínculo por RPC;
-- múltiplos dispositivos;
-- tratamento offline e sincronização.
+- CRUD real de humor;
+- CRUD real de rotina e conclusões;
+- preferências sensoriais sincronizadas;
+- sessões de relaxamento sincronizadas;
+- pedidos de ajuda reais;
+- cartões de comunicação personalizados;
+- cache offline e fila de sincronização.
 
-## Fase C — Push real
+## Fase D — Vínculo real
+
+- dependente chama `create_pairing_code()`;
+- responsável chama `claim_pairing_code()`;
+- criação de `connections`;
+- seleção de dependente para responsáveis com mais de um vínculo;
+- remoção de vínculo com confirmação;
+- auditoria das políticas RLS para contas vinculadas e não vinculadas.
+
+## Fase E — Push real
+
 - EAS project ID;
 - development build;
 - Expo Push Token;
@@ -29,9 +53,10 @@
 - deploy da Edge Function;
 - push para responsáveis;
 - deep link direto para o pedido;
-- receipts/retry/desativação de token inválido.
+- receipts/retry e desativação de token inválido.
 
-## Fase D — Qualidade
+## Fase F — Qualidade
+
 - testes unitários das regras;
 - testes de integração com Supabase;
 - testes E2E dos dois perfis;
@@ -40,9 +65,10 @@
 - teste em aparelhos Android de entrada;
 - validação de consumo de bateria e áudio.
 
-## Fase E — Produto
+## Fase G — Produto
+
 - onboarding melhor;
-- recuperação de senha;
+- recuperação de senha completa;
 - exportar dados;
 - exclusão de conta;
 - política de privacidade;
@@ -50,7 +76,8 @@
 - analytics mínimos e não invasivos;
 - crash reporting sem conteúdo sensível.
 
-## Fase F — Ideias futuras, somente se fizerem sentido em testes com usuários
+## Ideias futuras, somente se fizerem sentido em testes com usuários
+
 - histórias sociais personalizáveis;
 - biblioteca visual própria de ícones/fotos;
 - calendário semanal com mudanças destacadas;

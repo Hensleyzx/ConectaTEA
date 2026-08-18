@@ -1,40 +1,54 @@
-# Configurar o Supabase
+# Configurar o Supabase — ConectaTEA V3
 
-A V2 funciona localmente sem Supabase. Faça esta etapa quando quiser transformar o protótipo em sistema multi-dispositivo.
+A V3 já usa o Supabase para **cadastro, login, sessão e perfil**. Os módulos de humor, rotina, relaxamento e ajuda ainda serão sincronizados na próxima etapa.
 
-## 1. Criar projeto
+## 1. Projeto Supabase
 
-Crie um projeto novo no Supabase. Guarde:
+Use o projeto em que o schema do ConectaTEA foi executado. Guarde somente:
 
 - Project URL;
 - Publishable key.
 
-Não use secret/service-role key no aplicativo.
+Nunca use `service_role`, secret key ou senha do banco dentro do aplicativo.
 
-## 2. Criar banco
+## 2. Banco
 
-Abra o SQL Editor do projeto e execute todo o arquivo:
+O arquivo oficial desta versão é:
 
 ```text
 supabase/schema.sql
 ```
 
-O script cria tabelas, índices, funções de vínculo e políticas RLS.
+Ele corresponde ao schema V2.1 revisado e contém tabelas, índices, triggers, RPCs, RLS e proteções de integridade.
 
-## 3. Criar `.env`
+Se você já executou a V2.1 revisada no projeto Supabase, **não precisa executar novamente apenas para usar a V3 do app**.
 
-Copie `.env.example` para `.env`:
+Para verificar a estrutura sem alterar dados, execute:
+
+```text
+supabase/verify_setup.sql
+```
+
+## 3. `.env` local
+
+Na raiz do projeto, crie `.env` a partir de `.env.example`:
 
 ```env
 EXPO_PUBLIC_SUPABASE_URL=https://SEU-PROJETO.supabase.co
-EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=SUA_CHAVE_PUBLICAVEL
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxxxxxxxxxxxxxx
 ```
 
-Depois reinicie o Expo.
+Depois reinicie limpando o cache:
 
-## 4. Autenticação
+```powershell
+npx expo start -c
+```
 
-O trigger `handle_new_user` espera metadata no cadastro:
+O `.env` está no `.gitignore` e não deve ser enviado ao GitHub.
+
+## 4. Autenticação implementada
+
+O cadastro chama `supabase.auth.signUp` e envia:
 
 ```ts
 {
@@ -43,36 +57,46 @@ O trigger `handle_new_user` espera metadata no cadastro:
 }
 ```
 
-A tela de autenticação da V2 ainda opera em modo local; a camada de produção deve chamar `supabase.auth.signUp` e `supabase.auth.signInWithPassword` e então hidratar o estado com o perfil autenticado.
+A trigger `handle_new_user` cria a linha correspondente em `public.profiles`.
 
-## 5. Vínculo seguro
+No login, o app consulta `public.profiles.role`. Ele não usa apenas metadata para decidir qual ambiente abrir.
 
-Fluxo de produção previsto:
+## 5. Confirmação de e-mail
 
-1. dependente chama RPC `create_pairing_code()`;
-2. servidor cria um código temporário e salva somente o hash;
-3. responsável digita o código;
-4. responsável chama RPC `claim_pairing_code(code)`;
-5. o servidor cria `connections`;
-6. as políticas RLS passam a permitir as leituras autorizadas.
+Se a confirmação de e-mail estiver habilitada no Supabase, o cadastro pode retornar usuário sem sessão. Nesse caso, o ConectaTEA informa que é necessário confirmar o e-mail antes do primeiro login.
 
-## 6. Sincronização recomendada
+## 6. Teste mínimo
 
-Para produção, implemente um Repository que:
+Teste pelo menos:
 
-- carregue dados do servidor depois do login;
-- mantenha cache local;
-- registre fila de mudanças offline;
-- tente sincronizar quando a conexão voltar;
-- evite apagar dados locais antes da confirmação do servidor;
-- use IDs UUID do servidor em registros sincronizados.
+1. criar Dependente A;
+2. confirmar que aparece em `Authentication > Users`;
+3. confirmar que `profiles.role = dependent`;
+4. sair e entrar novamente;
+5. fechar e reabrir o app e verificar restauração da sessão;
+6. criar Responsável A;
+7. confirmar `profiles.role = guardian`;
+8. tentar entrar com Responsável A pela opção Dependente e confirmar que o app recusa.
 
-## 7. Teste RLS antes de publicar
+## 7. Vínculo seguro — próxima integração
 
-Teste ao menos três contas:
+O banco já contém as RPCs:
 
-- Dependente A;
-- Responsável A vinculado ao Dependente A;
-- Responsável B sem vínculo.
+- `create_pairing_code()`;
+- `claim_pairing_code(code)`.
 
-O Responsável B nunca deve conseguir ler humor, rotina, preferências ou pedidos do Dependente A, mesmo fazendo chamadas diretas à API.
+A próxima etapa do app substituirá o vínculo demonstrativo pela chamada dessas funções e pela tabela `connections`.
+
+## 8. Sincronização — próxima integração
+
+Os próximos módulos a migrar para o Supabase são:
+
+- `mood_entries`;
+- `routine_items` e `routine_completions`;
+- `relax_sessions`;
+- `sensory_preferences`;
+- `app_settings`;
+- `help_requests`;
+- `communication_cards`.
+
+O cache local continuará útil para funcionamento offline, mas o servidor passará a ser a fonte compartilhada entre os dois celulares.

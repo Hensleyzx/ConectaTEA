@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { AppProvider, useApp } from './src/context/AppContext';
 import { AboutScreen } from './src/screens/AboutScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
@@ -34,7 +34,7 @@ export default function App() {
 }
 
 function Router() {
-  const { ready } = useApp();
+  const { ready, onlineMode, authUserId, authRole } = useApp();
   const [route, setRoute] = useState<Route>({ name: 'welcome' });
   const [history, setHistory] = useState<Route[]>([]);
 
@@ -57,6 +57,22 @@ function Router() {
       return old.slice(0, -1);
     });
   }, []);
+
+  useEffect(() => {
+    if (!ready || !onlineMode) return;
+
+    if (authUserId && authRole && route.name === 'welcome') {
+      setHistory([]);
+      setRoute({ name: authRole === 'guardian' ? 'guardian-home' : 'dependent-home' });
+      return;
+    }
+
+    const publicScreens: ScreenName[] = ['welcome', 'role', 'auth'];
+    if (!authUserId && !publicScreens.includes(route.name)) {
+      setHistory([]);
+      setRoute({ name: 'welcome' });
+    }
+  }, [ready, onlineMode, authUserId, authRole, route.name]);
 
   if (!ready) return <LoadingScreen />;
 
