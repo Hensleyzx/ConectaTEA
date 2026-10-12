@@ -67,3 +67,10 @@ O workflow `.github/workflows/deploy-pages.yml` está incluído. Depois de envia
 ## Escopo acadêmico
 
 O ConectaTEA é uma ferramenta de apoio à organização, comunicação e acompanhamento. Não realiza diagnóstico de TEA, não substitui profissionais de saúde e não deve ser utilizado como serviço de emergência.
+
+
+## Projeto Supabase atual
+
+O frontend está configurado para o projeto Supabase criado para esta versão do ConectaTEA. A chave presente no `config.js` é a **Publishable key**, própria para uso no navegador. Nunca adicione `service_role`, secret key ou senha do banco ao repositório.
+
+Para confirmação de e-mail em produção, configure no Supabase Authentication a URL publicada do GitHub Pages como **Site URL** e **Redirect URL**. O cadastro também envia `emailRedirectTo` automaticamente para a origem atual do site.

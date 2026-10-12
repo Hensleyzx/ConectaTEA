@@ -57,7 +57,20 @@
   const $ = (sel) => document.querySelector(sel);
   const esc = (s = '') => String(s).replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
   const fmt = (iso) => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso));
-  const today = () => new Date().toISOString().slice(0, 10);
+  const localDateKey = (date = new Date()) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+  const today = () => localDateKey();
+  const authRedirectUrl = () => {
+    const url = new URL(window.location.href);
+    url.hash = '';
+    url.search = '';
+    if (!url.pathname.endsWith('/')) url.pathname = url.pathname.replace(/[^/]*$/, '');
+    return url.toString();
+  };
   const profileRole = () => app.profile?.role || null;
   const isDependent = () => profileRole() === 'dependent';
   const isGuardian = () => profileRole() === 'guardian';
@@ -148,7 +161,7 @@
         const [moodRes, routineRes, completionRes, helpRes] = await Promise.all([
           db.from('mood_entries').select('id, dependent_id, mood, reason, intensity, support_need, created_at').eq('dependent_id', depId).order('created_at', { ascending: false }).limit(100),
           db.from('routine_items').select('id, dependent_id, title, scheduled_time, emoji, sort_order, active, created_at, updated_at').eq('dependent_id', depId).eq('active', true).order('scheduled_time', { ascending: true }),
-          db.from('routine_completions').select('id, routine_item_id, dependent_id, completed_on, completed_at').eq('dependent_id', depId).gte('completed_on', new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)),
+          db.from('routine_completions').select('id, routine_item_id, dependent_id, completed_on, completed_at').eq('dependent_id', depId).gte('completed_on', localDateKey(new Date(Date.now() - 30 * 86400000))),
           db.from('help_requests').select('id, dependent_id, urgency, message, status, created_at, acknowledged_at, resolved_at').eq('dependent_id', depId).order('created_at', { ascending: false }).limit(100),
         ]);
         const firstError = moodRes.error || routineRes.error || completionRes.error || helpRes.error;
@@ -402,7 +415,14 @@
     if (name.length < 2) return showAuthError('Digite um nome com pelo menos 2 caracteres.');
     if (!email.includes('@')) return showAuthError('Digite um e-mail válido.');
     if (password.length < 6) return showAuthError('A senha precisa ter pelo menos 6 caracteres.');
-    const { data, error } = await db.auth.signUp({ email, password, options: { data: { display_name: name, role: app.signupRole } } });
+    const { data, error } = await db.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: authRedirectUrl(),
+        data: { display_name: name, role: app.signupRole },
+      },
+    });
     if (error) return showAuthError(friendlyError(error));
     if (!data.session) {
       app.authMode = 'login';

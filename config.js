@@ -1,4 +1,4 @@
 window.CONNECTATEA_CONFIG = {
-  supabaseUrl: 'https://zgxzlfkbehoiwdongvep.supabase.co',
-  supabasePublishableKey: 'sb_publishable_4qp3pWyQNcdXnLgx0JGM2A_j3MOH14b'
+  supabaseUrl: 'https://jjzmvikgcvdeqdadhppp.supabase.co',
+  supabasePublishableKey: 'sb_publishable_lebkFjoP-duGB6AcPdfaHw_TqUZjzXv'
 };
