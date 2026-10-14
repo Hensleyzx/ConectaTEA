@@ -30,6 +30,19 @@
     ['⌛', 'Preciso de mais tempo para responder.'],
   ];
 
+
+  const relaxationTracks = [
+    { id: 'rain', emoji: '🌧️', label: 'Chuva suave', desc: 'Som contínuo para reduzir estímulos ao redor.', src: 'assets/audio/rain.wav' },
+    { id: 'ocean', emoji: '🌊', label: 'Ondas do mar', desc: 'Movimento calmo e repetitivo de ondas.', src: 'assets/audio/ocean.wav' },
+    { id: 'forest', emoji: '🌿', label: 'Floresta', desc: 'Ambiente leve com natureza e sons discretos.', src: 'assets/audio/forest.wav' },
+    { id: 'birds', emoji: '🐦', label: 'Pássaros', desc: 'Cantos suaves sobre um fundo tranquilo.', src: 'assets/audio/birds.wav' },
+    { id: 'wind', emoji: '🍃', label: 'Vento suave', desc: 'Ruído leve e constante de vento.', src: 'assets/audio/wind.wav' },
+    { id: 'brown', emoji: '🎧', label: 'Ruído marrom', desc: 'Som grave e uniforme para mascarar ruídos externos.', src: 'assets/audio/brown.wav' },
+  ];
+
+  let relaxationAudio = null;
+  let relaxationTrackId = null;
+
   const app = {
     ready: false,
     syncing: false,
@@ -337,7 +350,8 @@
   }
 
   function toolsView() {
-    return `<h1>Me acalmar</h1><p class="section-sub">Ferramentas simples de autorregulação que funcionam diretamente no navegador.</p><div class="grid"><button class="action-card" data-action="breathing-modal"><div class="icon purple">🫁</div><div><b>Respiração guiada</b><span>Inspire, segure e expire devagar</span></div></button><button class="action-card" data-action="grounding-modal"><div class="icon green">🌿</div><div><b>5-4-3-2-1</b><span>Volte a atenção para o momento presente</span></div></button><button class="action-card" data-action="timer-modal"><div class="icon blue">⏱️</div><div><b>Timer visual</b><span>Escolha um tempo para pausa ou atividade</span></div></button><button class="action-card" data-action="communication-modal"><div class="icon red">💬</div><div><b>Comunicação rápida</b><span>Frases com leitura em voz alta</span></div></button></div>`;
+    const sounds = isDependent() ? `<h2 class="section-title">Sons de relaxamento</h2><p class="section-sub">Escolha um som. Apenas um toca por vez e ele repete até você pausar ou parar.</p><div class="relax-grid">${relaxationTracks.map((track) => `<button class="relax-card" data-relax-track="${track.id}"><span class="relax-emoji">${track.emoji}</span><span class="relax-copy"><b>${esc(track.label)}</b><small>${esc(track.desc)}</small></span><span class="relax-play" data-relax-label="${track.id}">▶</span></button>`).join('')}</div><div class="card relax-controls"><div><b id="relaxNow">Nenhum som tocando</b><div class="tiny muted">Controle de volume</div></div><input id="relaxVolume" data-relax-volume type="range" min="0" max="100" value="55" aria-label="Volume dos sons de relaxamento"><button class="btn ghost" data-action="stop-relax">Parar</button></div>` : '';
+    return `<h1>Me acalmar</h1><p class="section-sub">Ferramentas simples de autorregulação que funcionam diretamente no navegador.</p><div class="grid"><button class="action-card" data-action="breathing-modal"><div class="icon purple">🫁</div><div><b>Respiração guiada</b><span>Inspire, segure e expire devagar</span></div></button><button class="action-card" data-action="grounding-modal"><div class="icon green">🌿</div><div><b>5-4-3-2-1</b><span>Volte a atenção para o momento presente</span></div></button><button class="action-card" data-action="timer-modal"><div class="icon blue">⏱️</div><div><b>Timer visual</b><span>Escolha um tempo para pausa ou atividade</span></div></button><button class="action-card" data-action="communication-modal"><div class="icon red">💬</div><div><b>Comunicação rápida</b><span>Frases com leitura em voz alta</span></div></button></div>${sounds}`;
   }
 
   function pairingCard() {
@@ -378,6 +392,8 @@
     document.querySelectorAll('[data-delete-routine]').forEach((b) => b.onclick = () => deleteRoutine(b.dataset.deleteRoutine));
     document.querySelectorAll('[data-help-action]').forEach((b) => b.onclick = () => { const [action, id] = b.dataset.helpAction.split('|'); setHelpStatus(id, action); });
     document.querySelectorAll('[data-speak]').forEach((b) => b.onclick = () => speak(b.dataset.speak));
+    document.querySelectorAll('[data-relax-track]').forEach((b) => b.onclick = () => toggleRelaxation(b.dataset.relaxTrack));
+    document.querySelectorAll('[data-relax-volume]').forEach((el) => el.oninput = () => setRelaxationVolume(el.value));
 
     document.querySelectorAll('[data-action]').forEach((b) => {
       const a = b.dataset.action;
@@ -401,7 +417,9 @@
       if (a === 'start-breath') b.onclick = startBreathing;
       if (a === 'start-timer') b.onclick = startTimer;
       if (a === 'reset-timer') b.onclick = () => resetTimer(false);
+      if (a === 'stop-relax') b.onclick = stopRelaxation;
     });
+    syncRelaxationUi();
 
     const backdrop = $('.modal-backdrop');
     if (backdrop) backdrop.onclick = (e) => { if (e.target === backdrop) { stopTimers(); app.modal = null; render(); } };
@@ -448,6 +466,7 @@
 
   async function signOut() {
     stopTimers();
+    stopRelaxation();
     await db.auth.signOut();
   }
 
@@ -550,6 +569,61 @@
     if (error) return alert(friendlyError(error));
     await loadAll({ quiet: true });
     showToast(action === 'resolve' ? 'Pedido marcado como resolvido.' : 'Confirmação registrada.');
+  }
+
+  function toggleRelaxation(id) {
+    const track = relaxationTracks.find((item) => item.id === id);
+    if (!track) return;
+    if (relaxationAudio && relaxationTrackId === id && !relaxationAudio.paused) {
+      relaxationAudio.pause();
+      syncRelaxationUi();
+      return;
+    }
+    if (relaxationAudio) {
+      relaxationAudio.pause();
+      relaxationAudio.currentTime = 0;
+    }
+    relaxationAudio = new Audio(track.src);
+    relaxationAudio.loop = true;
+    relaxationAudio.preload = 'auto';
+    relaxationAudio.volume = Number($('#relaxVolume')?.value || 55) / 100;
+    relaxationTrackId = id;
+    relaxationAudio.play().then(syncRelaxationUi).catch(() => {
+      relaxationAudio = null;
+      relaxationTrackId = null;
+      alert('Não foi possível reproduzir o áudio neste navegador.');
+      syncRelaxationUi();
+    });
+  }
+
+  function setRelaxationVolume(value) {
+    const volume = Math.max(0, Math.min(1, Number(value) / 100));
+    if (relaxationAudio) relaxationAudio.volume = volume;
+  }
+
+  function stopRelaxation() {
+    if (relaxationAudio) {
+      relaxationAudio.pause();
+      relaxationAudio.currentTime = 0;
+      relaxationAudio = null;
+    }
+    relaxationTrackId = null;
+    syncRelaxationUi();
+  }
+
+  function syncRelaxationUi() {
+    const playing = Boolean(relaxationAudio && relaxationTrackId && !relaxationAudio.paused);
+    document.querySelectorAll('[data-relax-track]').forEach((button) => {
+      const active = playing && button.dataset.relaxTrack === relaxationTrackId;
+      button.classList.toggle('active', active);
+      const label = button.querySelector('[data-relax-label]');
+      if (label) label.textContent = active ? '⏸' : '▶';
+    });
+    const now = $('#relaxNow');
+    if (now) {
+      const track = relaxationTracks.find((item) => item.id === relaxationTrackId);
+      now.textContent = track ? `${playing ? 'Tocando' : 'Pausado'}: ${track.label}` : 'Nenhum som tocando';
+    }
   }
 
   function speak(text) {

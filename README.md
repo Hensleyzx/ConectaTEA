@@ -16,6 +16,7 @@ Versão web do ConectaTEA com autenticação, banco de dados real e vínculo ent
 - Pedidos de ajuda com níveis normal/urgente.
 - Responsável pode marcar pedido como “Eu vi” e “Resolvido”.
 - Ferramentas locais: respiração guiada, grounding 5-4-3-2-1, timer visual e comunicação por voz.
+- Sons de relaxamento para o dependente: chuva, oceano, floresta, pássaros, vento suave e ruído marrom, com reprodução em loop e volume ajustável.
 - Atualização automática aproximadamente a cada 15 segundos + botão manual de atualizar.
 - Site responsivo para celular e computador.
 - Publicação preparada para GitHub Pages.
